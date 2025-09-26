@@ -4,72 +4,730 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remove White BG</title>
+    <title>Remove Background Color</title>
     <style>
-        #copyright,body,h1,h2{color:#fff}body{background-color:#333;font-family:Arial,sans-serif;margin:0;padding:20px;line-height:1.6}#copyright{margin-top:30px;text-align:center;font-size:14px}
+        #copyright,
+        body,
+        h1,
+        h2 {
+            color: #fff
+        }
+        
+        body {
+            background-color: #333;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6
+        }
+        
+        #copyright {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 14px
+        }
+        
+        /* Color picker dialog styles */
+        #colorPickerDialog {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #444;
+            border: 1px solid #666;
+            padding: 20px;
+            z-index: 1000;
+            width: 300px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        #colorTabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #666;
+        }
+        
+        .tab {
+            padding: 8px 15px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            margin-right: 5px;
+        }
+        
+        .tab.active {
+            border: 1px solid #666;
+            border-bottom: 1px solid #444;
+            background-color: #444;
+        }
+        
+        .tabContent {
+            display: none;
+        }
+        
+        .tabContent.active {
+            display: block;
+        }
+        
+        .colorInput {
+            width: 100%;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .colorInput label {
+            width: 30px;
+            color: #fff;
+        }
+        
+        .colorInput input[type="text"] {
+            width: 50px;
+            margin: 0 10px;
+            background-color: #555;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 3px;
+        }
+        
+        .colorInput input[type="range"] {
+            flex: 1;
+        }
+        
+        #colorPreview {
+            width: 100%;
+            height: 50px;
+            margin: 10px 0;
+            border: 1px solid #666;
+        }
+        
+        #dialogActions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 15px;
+        }
+        
+        #dialogActions button {
+            margin-left: 10px;
+            padding: 5px 15px;
+            background-color: #555;
+            color: #fff;
+            border: 1px solid #777;
+            cursor: pointer;
+        }
+        
+        #dialogActions button:hover {
+            background-color: #666;
+        }
+        
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        
+        /* Spectrum slider styling */
+        #hSlider {
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(to right,
+                    #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+            border-radius: 5px;
+        }
+        
+        /* Webkit track styles */
+        #hSlider::-webkit-slider-runnable-track {
+            background: linear-gradient(to right,
+                    #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+            border-radius: 5px;
+        }
+        
+        /* Webkit thumb styles */
+        #hSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 1px solid #ccc;
+        }
+        
+        /* Firefox track styles */
+        #hSlider::-moz-range-track {
+            width: 100%;
+            height: 10px;
+            background: linear-gradient(to right,
+                    #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+            border-radius: 5px;
+            border: none;
+        }
+        
+        /* Firefox thumb styles */
+        #hSlider::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 
 <body>
-    <h1>White Background Remover</h1>
-    <div><input type="file" id="imageUpload" accept="image/*"><button id="downloadBtn" disabled>Save Result</button></div>
+    <h1>Background Remover</h1>
+    <div><input type="file" id="imageUpload" accept="image/*"><button id="colorPickerBtn">Choose Color</button><button id="downloadBtn" disabled>Save Result</button></div>
+    <div id="processingInfo" style="display: none;">Time:<span id="processingTime">0</span>ms</div>
     <div>
         <h2>Original</h2><img id="originalPreview" style="max-width: 100px; display: none;">
         <h2>Processed</h2><img id="processedPreview" style="max-width: 100px; display: none;">
     </div>
-    <div id="copyright">© Lanczos, 2025</div>
-    <script>const imageUpload = document.getElementById("imageUpload"),
-    downloadBtn = document.getElementById("downloadBtn"),
-    originalPreview = document.getElementById("originalPreview"),
-    processedPreview = document.getElementById("processedPreview");
-
-function processImage(e) {
-    let t = document.createElement("canvas"),
-        a = t.getContext("2d");
-    t.width = e.width, t.height = e.height, a.drawImage(e, 0, 0);
-    let l = a.getImageData(0, 0, t.width, t.height),
-        i = l.data,
-        n = !1;
-    for (let d = 3; d < i.length; d += 4)
-        if (i[d] < 255) {
-            n = !0;
-            break
-        } if (n) {
-        let o = document.createElement("canvas"),
-            r = o.getContext("2d");
-        o.width = t.width, o.height = t.height, r.fillStyle = "white", r.fillRect(0, 0, o.width, o.height), r.drawImage(e, 0, 0), i = (l = r.getImageData(0, 0, o.width, o.height)).data
-    }
-    for (let g = 0; g < i.length; g += 4) i[g] = 255 - i[g], i[g + 1] = 255 - i[g + 1], i[g + 2] = 255 - i[g + 2];
-    for (let s = 0; s < i.length; s += 4) {
-        let h = i[s],
-            c = i[s + 1],
-            w = i[s + 2],
-            $ = Math.max(h, c, w);
-        if (0 !== $) {
-            let m = 255 / $;
-            i[s] = Math.round(h * m), i[s + 1] = Math.round(c * m), i[s + 2] = Math.round(w * m), i[s + 3] = Math.round($)
-        } else i[s] = 0, i[s + 1] = 0, i[s + 2] = 0, i[s + 3] = 0
-    }
-    for (let f = 0; f < i.length; f += 4) i[f] = 255 - i[f], i[f + 1] = 255 - i[f + 1], i[f + 2] = 255 - i[f + 2];
-    return a.putImageData(l, 0, 0), t.toDataURL("image/png")
-}
-imageUpload.addEventListener("change", function(e) {
-    let t = e.target.files[0];
-    if (!t) return;
-    let a = new FileReader;
-    a.onload = function(e) {
-        let t = new Image;
-        t.onload = function() {
-            originalPreview.src = e.target.result, originalPreview.style.display = "block";
-            let a = processImage(t);
-            processedPreview.src = a, processedPreview.style.display = "block", downloadBtn.disabled = !1, downloadBtn.onclick = function() {
-                let e = document.createElement("a");
-                e.href = a, e.download = "done.png", document.body.appendChild(e), e.click(), document.body.removeChild(e)
+    <div id="copyright">Â© Lanczos, 2025</div>
+    <!-- Color Selector Dialog -->
+    <div id="overlay"></div>
+    <div id="colorPickerDialog">
+        <h3 style="color:#fff;margin-top:0;">Select Background Color</h3>
+        <div id="colorTabs">
+            <div class="tab active" data-tab="hex">HEX</div>
+            <div class="tab" data-tab="rgb">RGB</div>
+            <div class="tab" data-tab="hsv">HSV</div>
+        </div>
+        <div id="hexTab" class="tabContent active">
+            <div class="colorInput"><label>HEX:</label><input type="text" id="hexInput" value="#FFFFFF"></div>
+        </div>
+        <div id="rgbTab" class="tabContent">
+            <div class="colorInput"><label>R:</label><input type="range" id="rSlider" min="0" max="255" value="255"><input type="text" id="rInput" value="255"></div>
+            <div class="colorInput"><label>G:</label><input type="range" id="gSlider" min="0" max="255" value="255"><input type="text" id="gInput" value="255"></div>
+            <div class="colorInput"><label>B:</label><input type="range" id="bSlider" min="0" max="255" value="255"><input type="text" id="bInput" value="255"></div>
+        </div>
+        <div id="hsvTab" class="tabContent">
+            <div class="colorInput"><label>H:</label><input type="range" id="hSlider" min="0" max="360" value="0"><input type="text" id="hInput" value="0"></div>
+            <div class="colorInput"><label>S:</label><input type="range" id="sSlider" min="0" max="100" value="0"><input type="text" id="sInput" value="0"></div>
+            <div class="colorInput"><label>V:</label><input type="range" id="vSlider" min="0" max="100" value="100"><input type="text" id="vInput" value="100"></div>
+        </div>
+        <div id="colorPreview"></div>
+        <div id="dialogActions"><button id="cancelBtn">Cancel</button><button id="applyBtn">Apply</button></div>
+    </div>
+    <script>
+        // DOM element references
+        const imageUpload = document.getElementById('imageUpload');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const originalPreview = document.getElementById('originalPreview');
+        const processedPreview = document.getElementById('processedPreview');
+        const colorPickerBtn = document.getElementById('colorPickerBtn');
+        const colorPickerDialog = document.getElementById('colorPickerDialog');
+        const overlay = document.getElementById('overlay');
+        const processingInfo = document.getElementById('processingInfo');
+        const processingTime = document.getElementById('processingTime');
+        
+        // Target background color (normalized to 0-1 range)
+        let targetColor = {
+            r: 1,
+            g: 1,
+            b: 1
+        };
+        
+        // Color picker UI elements
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tabContent');
+        
+        // HEX input element
+        const hexInput = document.getElementById('hexInput');
+        
+        // RGB control elements
+        const rSlider = document.getElementById('rSlider');
+        const gSlider = document.getElementById('gSlider');
+        const bSlider = document.getElementById('bSlider');
+        const rInput = document.getElementById('rInput');
+        const gInput = document.getElementById('gInput');
+        const bInput = document.getElementById('bInput');
+        
+        // HSV control elements
+        const hSlider = document.getElementById('hSlider');
+        const sSlider = document.getElementById('sSlider');
+        const vSlider = document.getElementById('vSlider');
+        const hInput = document.getElementById('hInput');
+        const sInput = document.getElementById('sInput');
+        const vInput = document.getElementById('vInput');
+        
+        // Dialog action buttons
+        const cancelBtn = document.getElementById('cancelBtn');
+        const applyBtn = document.getElementById('applyBtn');
+        
+        // Color preview element
+        const colorPreview = document.getElementById('colorPreview');
+        
+        // Current selected color (0-255 range)
+        let currentColor = {
+            r: 255,
+            g: 255,
+            b: 255
+        };
+        
+        // Stores the data URL of the processed image
+        let currentProcessedDataURL = '';
+        
+        // Initialize color preview
+        updateColorPreview();
+        
+        // Tab switching functionality
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.getAttribute('data-tab');
+        
+                // Update active tab
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+        
+                // Show corresponding content
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    if (content.id === `${tabId}Tab`) {
+                        content.classList.add('active');
+                    }
+                });
+        
+                // Update control values based on selected tab
+                if (tabId === 'rgb') {
+                    // Update RGB controls from current color
+                    rSlider.value = currentColor.r;
+                    rInput.value = currentColor.r;
+                    gSlider.value = currentColor.g;
+                    gInput.value = currentColor.g;
+                    bSlider.value = currentColor.b;
+                    bInput.value = currentColor.b;
+                } else if (tabId === 'hsv') {
+                    // Convert and update HSV controls from current color
+                    const hsv = rgbToHsv(currentColor.r, currentColor.g, currentColor.b);
+                    hSlider.value = hsv.h;
+                    hInput.value = hsv.h;
+                    sSlider.value = hsv.s;
+                    sInput.value = hsv.s;
+                    vSlider.value = hsv.v;
+                    vInput.value = hsv.v;
+                }
+                // HEX tab doesn't need special handling as hexInput is always synced
+            });
+        });
+        
+        // HEX input event handler
+        hexInput.addEventListener('input', () => {
+            const hex = hexInput.value;
+            if (isValidHex(hex)) {
+                const rgb = hexToRgb(hex);
+                currentColor = rgb;
+                updateColorFromRgb();
+                updateColorPreview();
             }
-        }, t.src = e.target.result
-    }, a.readAsDataURL(t)
-});
-</script>
+        });
+        
+        // RGB slider and input event handlers
+        [rSlider, gSlider, bSlider].forEach((slider, index) => {
+            slider.addEventListener('input', () => {
+                const inputs = [rInput, gInput, bInput];
+                inputs[index].value = slider.value;
+                updateRgbFromSliders();
+            });
+        });
+        
+        [rInput, gInput, bInput].forEach((input, index) => {
+            input.addEventListener('input', () => {
+                const sliders = [rSlider, gSlider, bSlider];
+                const value = parseInt(input.value) || 0;
+                if (value >= 0 && value <= 255) {
+                    sliders[index].value = value;
+                    updateRgbFromSliders();
+                }
+            });
+        });
+        
+        // HSV slider and input event handlers
+        [hSlider, sSlider, vSlider].forEach((slider, index) => {
+            slider.addEventListener('input', () => {
+                const inputs = [hInput, sInput, vInput];
+                inputs[index].value = slider.value;
+                updateHsvFromSliders();
+            });
+        });
+        
+        [hInput, sInput, vInput].forEach((input, index) => {
+            input.addEventListener('input', () => {
+                const sliders = [hSlider, sSlider, vSlider];
+                const maxValues = [360, 100, 100];
+                const value = parseInt(input.value) || 0;
+                if (value >= 0 && value <= maxValues[index]) {
+                    sliders[index].value = value;
+                    updateHsvFromSliders();
+                }
+            });
+        });
+        
+        // Update RGB values from slider inputs
+        function updateRgbFromSliders() {
+            currentColor = {
+                r: parseInt(rSlider.value),
+                g: parseInt(gSlider.value),
+                b: parseInt(bSlider.value)
+            };
+            updateHexFromRgb();
+            updateColorPreview();
+        }
+        
+        // Update HSV values from slider inputs
+        function updateHsvFromSliders() {
+            const h = parseInt(hSlider.value);
+            const s = parseInt(sSlider.value);
+            const v = parseInt(vSlider.value);
+        
+            const rgb = hsvToRgb(h, s, v);
+            currentColor = rgb;
+        
+            updateHexFromRgb();
+            updateColorPreview();
+        }
+        
+        // Update all color representations from RGB values
+        function updateColorFromRgb() {
+            rSlider.value = currentColor.r;
+            gSlider.value = currentColor.g;
+            bSlider.value = currentColor.b;
+            rInput.value = currentColor.r;
+            gInput.value = currentColor.g;
+            bInput.value = currentColor.b;
+        
+            updateHexFromRgb();
+        }
+        
+        // Update HEX value from RGB values
+        function updateHexFromRgb() {
+            hexInput.value = rgbToHex(currentColor.r, currentColor.g, currentColor.b);
+        }
+        
+        // Update color preview element
+        function updateColorPreview() {
+            colorPreview.style.backgroundColor = `rgb(${currentColor.r}, ${currentColor.g}, ${currentColor.b})`;
+        }
+        
+        // Open color picker dialog
+        colorPickerBtn.addEventListener('click', () => {
+            colorPickerDialog.style.display = 'block';
+            overlay.style.display = 'block';
+        });
+        
+        // Close color picker dialog
+        cancelBtn.addEventListener('click', () => {
+            colorPickerDialog.style.display = 'none';
+            overlay.style.display = 'none';
+        });
+        
+        // Apply selected color and reprocess image if available
+        applyBtn.addEventListener('click', () => {
+            // Normalize color to 0-1 range
+            targetColor = {
+                r: currentColor.r / 255,
+                g: currentColor.g / 255,
+                b: currentColor.b / 255
+            };
+        
+            colorPickerDialog.style.display = 'none';
+            overlay.style.display = 'none';
+        
+            // Reprocess image if one is already uploaded
+            if (originalPreview.src) {
+                const img = new Image();
+                img.onload = function() {
+                    const processedDataURL = processImage(img);
+                    processedPreview.src = processedDataURL;
+                    // Update processed image data URL
+                    currentProcessedDataURL = processedDataURL;
+                };
+                img.src = originalPreview.src;
+            }
+        });
+        
+        // Color conversion utility functions
+        function isValidHex(hex) {
+            return /^#?[0-9A-F]{6}$/i.test(hex);
+        }
+        
+        function hexToRgb(hex) {
+            hex = hex.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            return {
+                r,
+                g,
+                b
+            };
+        }
+        
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+        
+        function rgbToHsv(r, g, b) {
+            r /= 255;
+            g /= 255;
+            b /= 255;
+        
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            let h, s, v = max;
+        
+            const d = max - min;
+            s = max === 0 ? 0 : d / max;
+        
+            if (max === min) {
+                h = 0;
+            } else {
+                switch (max) {
+                    case r:
+                        h = (g - b) / d + (g < b ? 6 : 0);
+                        break;
+                    case g:
+                        h = (b - r) / d + 2;
+                        break;
+                    case b:
+                        h = (r - g) / d + 4;
+                        break;
+                }
+                h /= 6;
+            }
+        
+            return {
+                h: Math.round(h * 360),
+                s: Math.round(s * 100),
+                v: Math.round(v * 100)
+            };
+        }
+        
+        function hsvToRgb(h, s, v) {
+            h /= 360;
+            s /= 100;
+            v /= 100;
+        
+            let r, g, b;
+        
+            const i = Math.floor(h * 6);
+            const f = h * 6 - i;
+            const p = v * (1 - s);
+            const q = v * (1 - f * s);
+            const t = v * (1 - (1 - f) * s);
+        
+            switch (i % 6) {
+                case 0:
+                    r = v;
+                    g = t;
+                    b = p;
+                    break;
+                case 1:
+                    r = q;
+                    g = v;
+                    b = p;
+                    break;
+                case 2:
+                    r = p;
+                    g = v;
+                    b = t;
+                    break;
+                case 3:
+                    r = p;
+                    g = q;
+                    b = v;
+                    break;
+                case 4:
+                    r = t;
+                    g = p;
+                    b = v;
+                    break;
+                case 5:
+                    r = v;
+                    g = p;
+                    b = q;
+                    break;
+            }
+        
+            return {
+                r: Math.round(r * 255),
+                g: Math.round(g * 255),
+                b: Math.round(b * 255)
+            };
+        }
+        
+        // Main image processing function
+        function processImage(image) {
+            // Start performance timing
+            const startTime = performance.now();
+        
+            // Create canvas element for processing
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+        
+            // Set canvas dimensions to match image
+            canvas.width = image.width;
+            canvas.height = image.height;
+        
+            // Draw image onto canvas
+            ctx.drawImage(image, 0, 0);
+        
+            // Get image pixel data
+            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let data = imageData.data;
+        
+            // Check if image has transparency
+            let hasTransparency = false;
+            for (let i = 3; i < data.length; i += 4) {
+                if (data[i] < 255) {
+                    hasTransparency = true;
+                    break;
+                }
+            }
+        
+            // If image has transparency, composite it over target background
+            if (hasTransparency) {
+                // Create temporary canvas for background compositing
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+        
+                // Fill with target background color
+                tempCtx.fillStyle = `rgb(${targetColor.r * 255}, ${targetColor.g * 255}, ${targetColor.b * 255})`;
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        
+                // Draw original image over background
+                tempCtx.drawImage(image, 0, 0);
+        
+                // Get new composited image data
+                imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                data = imageData.data;
+            }
+        
+            // Process each pixel (4 elements per pixel: R, G, B, A)
+            for (let i = 0; i < data.length; i += 4) {
+                // Get current pixel RGB values (normalized to 0-1)
+                const r_in = data[i] / 255;
+                const g_in = data[i + 1] / 255;
+                const b_in = data[i + 2] / 255;
+        
+                // Target background color components
+                const {
+                    r: r_bg,
+                    g: g_bg,
+                    b: b_bg
+                } = targetColor;
+        
+                // Calculate alpha channel based on maximum deviation from background
+                let alpha_r = 0,
+                    alpha_g = 0,
+                    alpha_b = 0;
+        
+                // Calculate alpha for red component
+                if (r_bg < 1) alpha_r = Math.max(0, (r_in - r_bg) / (1 - r_bg));
+                if (r_bg > 0) alpha_r = Math.max(alpha_r, (r_bg - r_in) / r_bg);
+        
+                // Calculate alpha for green component
+                if (g_bg < 1) alpha_g = Math.max(0, (g_in - g_bg) / (1 - g_bg));
+                if (g_bg > 0) alpha_g = Math.max(alpha_g, (g_bg - g_in) / g_bg);
+        
+                // Calculate alpha for blue component
+                if (b_bg < 1) alpha_b = Math.max(0, (b_in - b_bg) / (1 - b_bg));
+                if (b_bg > 0) alpha_b = Math.max(alpha_b, (b_bg - b_in) / b_bg);
+        
+                // Use maximum alpha value from all color channels
+                const alpha = Math.max(alpha_r, alpha_g, alpha_b);
+        
+                // Clamp alpha value to valid range
+                const final_alpha = Math.max(0, Math.min(1, alpha));
+        
+                // Calculate new foreground color (un-premultiply)
+                let r_out, g_out, b_out;
+                if (final_alpha < 1e-6) {
+                    // If almost transparent, set color to 0
+                    r_out = g_out = b_out = 0;
+                } else {
+                    // Calculate actual foreground color based on alpha
+                    r_out = (r_in - r_bg * (1 - final_alpha)) / final_alpha;
+                    g_out = (g_in - g_bg * (1 - final_alpha)) / final_alpha;
+                    b_out = (b_in - b_bg * (1 - final_alpha)) / final_alpha;
+                }
+        
+                // Write new RGBA values back to pixel data
+                data[i] = Math.max(0, Math.min(255, r_out * 255)); // Red
+                data[i + 1] = Math.max(0, Math.min(255, g_out * 255)); // Green
+                data[i + 2] = Math.max(0, Math.min(255, b_out * 255)); // Blue
+                data[i + 3] = final_alpha * 255; // Alpha
+            }
+        
+            // Put processed image data back to canvas
+            ctx.putImageData(imageData, 0, 0);
+        
+            // End performance timing
+            const endTime = performance.now();
+            const elapsedTime = endTime - startTime;
+        
+            // Update processing time display
+            processingTime.textContent = elapsedTime.toFixed(2);
+            processingInfo.style.display = 'inline-block';
+        
+            // Return processed image as data URL
+            return canvas.toDataURL('image/png');
+        }
+        
+        // Handle file upload
+        imageUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+        
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // Display original preview
+                    originalPreview.src = event.target.result;
+                    originalPreview.style.display = 'block';
+        
+                    // Process the image
+                    const processedDataURL = processImage(img);
+        
+                    // Display processed preview
+                    processedPreview.src = processedDataURL;
+                    processedPreview.style.display = 'block';
+        
+                    // Store processed image data URL
+                    currentProcessedDataURL = processedDataURL;
+        
+                    // Enable download button
+                    downloadBtn.disabled = false;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        // Handle download button click
+        downloadBtn.addEventListener('click', function() {
+            if (currentProcessedDataURL) {
+                const a = document.createElement('a');
+                a.href = currentProcessedDataURL;
+                a.download = 'done.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        });
+    </script>
 </body>
 
 </html>
