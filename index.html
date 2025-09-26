@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remove White BG</title>
+    <style>
+        #copyright,body,h1,h2{color:#fff}body{background-color:#333;font-family:Arial,sans-serif;margin:0;padding:20px;line-height:1.6}#copyright{margin-top:30px;text-align:center;font-size:14px}
+    </style>
+</head>
+
+<body>
+    <h1>White Background Remover</h1>
+    <div><input type="file" id="imageUpload" accept="image/*"><button id="downloadBtn" disabled>Save Result</button></div>
+    <div>
+        <h2>Original</h2><img id="originalPreview" style="max-width: 100px; display: none;">
+        <h2>Processed</h2><img id="processedPreview" style="max-width: 100px; display: none;">
+    </div>
+    <div id="copyright">© Lanczos, 2025</div>
+    <script>const imageUpload = document.getElementById("imageUpload"),
+    downloadBtn = document.getElementById("downloadBtn"),
+    originalPreview = document.getElementById("originalPreview"),
+    processedPreview = document.getElementById("processedPreview");
+
+function processImage(e) {
+    let t = document.createElement("canvas"),
+        a = t.getContext("2d");
+    t.width = e.width, t.height = e.height, a.drawImage(e, 0, 0);
+    let l = a.getImageData(0, 0, t.width, t.height),
+        i = l.data,
+        n = !1;
+    for (let d = 3; d < i.length; d += 4)
+        if (i[d] < 255) {
+            n = !0;
+            break
+        } if (n) {
+        let o = document.createElement("canvas"),
+            r = o.getContext("2d");
+        o.width = t.width, o.height = t.height, r.fillStyle = "white", r.fillRect(0, 0, o.width, o.height), r.drawImage(e, 0, 0), i = (l = r.getImageData(0, 0, o.width, o.height)).data
+    }
+    for (let g = 0; g < i.length; g += 4) i[g] = 255 - i[g], i[g + 1] = 255 - i[g + 1], i[g + 2] = 255 - i[g + 2];
+    for (let s = 0; s < i.length; s += 4) {
+        let h = i[s],
+            c = i[s + 1],
+            w = i[s + 2],
+            $ = Math.max(h, c, w);
+        if (0 !== $) {
+            let m = 255 / $;
+            i[s] = Math.round(h * m), i[s + 1] = Math.round(c * m), i[s + 2] = Math.round(w * m), i[s + 3] = Math.round($)
+        } else i[s] = 0, i[s + 1] = 0, i[s + 2] = 0, i[s + 3] = 0
+    }
+    for (let f = 0; f < i.length; f += 4) i[f] = 255 - i[f], i[f + 1] = 255 - i[f + 1], i[f + 2] = 255 - i[f + 2];
+    return a.putImageData(l, 0, 0), t.toDataURL("image/png")
+}
+imageUpload.addEventListener("change", function(e) {
+    let t = e.target.files[0];
+    if (!t) return;
+    let a = new FileReader;
+    a.onload = function(e) {
+        let t = new Image;
+        t.onload = function() {
+            originalPreview.src = e.target.result, originalPreview.style.display = "block";
+            let a = processImage(t);
+            processedPreview.src = a, processedPreview.style.display = "block", downloadBtn.disabled = !1, downloadBtn.onclick = function() {
+                let e = document.createElement("a");
+                e.href = a, e.download = "done.png", document.body.appendChild(e), e.click(), document.body.removeChild(e)
+            }
+        }, t.src = e.target.result
+    }, a.readAsDataURL(t)
+});
+</script>
+</body>
+
+</html>
