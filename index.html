@@ -12,7 +12,7 @@
         h2 {
             color: #fff
         }
-
+        
         body {
             background-color: #333;
             font-family: Arial, sans-serif;
@@ -20,9 +20,29 @@
             padding: 20px;
             line-height: 1.6
         }
-        a:link {
-         color: #BBB;
+        
+        /* Checkerboard BG for transparency visualization */
+        img {
+            background-color: #fff;
+            background-image: 
+                linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 8px 8px;
+            background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+            border: 1px solid #666;
         }
+        a:link {
+            color: #BBB;
+        }
+         a:visited {
+            color: #BBB;
+        }
+        a:hover {
+            color: #FFF;
+        }
+        
         #copyright {
             margin-top: 30px;
             text-align: center;
@@ -34,228 +54,106 @@
 <body>
     <h1>Background Remover</h1>
     <div>
-        <input type="file" id="imageUpload" accept="image/*">
+        <input type="file" id="imageUpload" accept=".jpg, .jpeg, .webp, .gif, .png, .img">
         <div style="margin:10px 0">
             <label style="color:#fff">
-                <input type="radio" name="bgColor" value="white" checked>White</label>
+                <input type="radio" name="workMode" value="white" checked>White</label>
             <label style="color:#fff;margin-left:15px">
-                <input type="radio" name="bgColor" value="black">Black</label>
+                <input type="radio" name="workMode" value="black">Black</label>
             <label style="color:#fff;margin-left:15px">
-                <input type="radio" name="bgColor" value="grayscale">Grayscale</label>
+                <input type="radio" name="workMode" value="grayscale">Grayscale</label>
         </div>
         <button id="downloadBtn" disabled>Save Result</button>
+        <button id="downloadBtn2" style="display: none;" disabled>Save Result 2</button>
+        <button id="reload" disabled>Reload</button>
         <div id="processingTime" style="color:#fff;margin-top:10px">
         </div>
     </div>
-    <div>
+    <div id="default_layout" style="display">
         <h2>Original</h2>
         <img id="originalPreview" style="max-width: 100px; max-height: 100px; display: none;">
         <h2>Processed</h2>
         <img id="processedPreview" style="max-width: 100px; max-height: 100px; display: none;">
     </div>
-    <div id="copyright">© Lanczos, 2025 <a href="https://github.com/LukaLanczos/Remove-White-Background">GitHub</div>
-
+    <div id="grayscale_layout" style="display: none;">
+        <h2>Color</h2>
+        <img id="colorPreview" style="max-width: 100px; max-height: 100px; display: none;">
+        <h2>Grayscale</h2>
+        <img id="grayscalePreview" style="max-width: 100px; max-height: 100px; display: none;">
+    </div>
+    <div id="copyright">© Lanczos, 2025 <a href="https://github.com/LukaLanczos/Remove-White-Background">GitHub</a>
+    </div>
+    <a href="https://github.com/LukaLanczos/Remove-White-Background">
+    </a>
     <script>
-        // Get DOM elements
-        const imageUpload = document.getElementById('imageUpload');
-        const downloadBtn = document.getElementById('downloadBtn');
-        const originalPreview = document.getElementById('originalPreview');
-        const processedPreview = document.getElementById('processedPreview');
-        const processingTime = document.getElementById('processingTime');
-        const bgColorRadios = document.getElementsByName('bgColor');
+        // State management
+        const state = {
+            currentImage: null,
+            currentTaskId: null,
+            selectedMode: 'white',
+            cache: {
+                white: { dataURL: null, timestamp: 0 },
+                black: { dataURL: null, timestamp: 0 },
+                grayscale: { 
+                    colorDataURL: null, 
+                    grayscaleDataURL: null, 
+                    timestamp: 0 
+                }
+            }
+        };
         
-        // Current image data being processed
-        let currentImage = null;
-        let currentImageDataURL = null;
+        // DOM elements
+        const domElements = {
+            imageUpload: document.getElementById('imageUpload'),
+            downloadBtn: document.getElementById('downloadBtn'),
+            downloadBtn2: document.getElementById('downloadBtn2'),
+            reloadBtn: document.getElementById('reload'),
+            originalPreview: document.getElementById('originalPreview'),
+            processedPreview: document.getElementById('processedPreview'),
+            colorPreview: document.getElementById('colorPreview'),
+            grayscalePreview: document.getElementById('grayscalePreview'),
+            processingTime: document.getElementById('processingTime'),
+            workModeRadios: document.getElementsByName('workMode'),
+            defaultLayout: document.getElementById('default_layout'),
+            grayscaleLayout: document.getElementById('grayscale_layout')
+        };
         
-        // Main image processing function
-        function processImage(image, targetColor, inputImageData = null) {
-            // Create canvas element for image manipulation
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            let imageData;
-            
-            if (inputImageData) {
-                // Use provided ImageData directly
-                canvas.width = inputImageData.width;
-                canvas.height = inputImageData.height;
-                imageData = inputImageData;
-            } else {
-                // Create ImageData from image
-                canvas.width = image.width;
-                canvas.height = image.height;
-                ctx.drawImage(image, 0, 0);
-                imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                
-                // Check if contains transparency
-                let hasTransparency = false;
-                const data = imageData.data;
-                for (let i = 3; i < data.length; i += 4) {
-                    if (data[i] < 255) {
-                        hasTransparency = true;
-                        break;
+        // Utility functions
+        const utils = {
+            // Get selected mode
+            getSelectedMode() {
+                for (const radio of domElements.workModeRadios) {
+                    if (radio.checked) return radio.value;
+                }
+                return 'white';
+            },
+        
+            // Show or hide element
+            toggleElement(element, show) {
+                element.style.display = show ? 'block' : 'none';
+            },
+        
+            // Reset all previews
+            resetPreviews() {
+                const previews = [
+                    domElements.processedPreview, 
+                    domElements.colorPreview, 
+                    domElements.grayscalePreview
+                ];
+                previews.forEach(preview => this.toggleElement(preview, false));
+            },
+        
+            // Button states
+            setButtonsState(buttons, enabled) {
+                buttons.forEach(btn => {
+                    if (btn && btn.style.display !== 'none') {
+                        btn.disabled = !enabled;
                     }
-                }
-                
-                // If has, composite with bg
-                if (hasTransparency) {
-                    // Create temporary for drawing target bg
-                    const tempCanvas = document.createElement('canvas');
-                    const tempCtx = tempCanvas.getContext('2d');
-                    tempCanvas.width = canvas.width;
-                    tempCanvas.height = canvas.height;
-                    
-                    tempCtx.fillStyle = `rgb(${targetColor.r * 255}, ${targetColor.g * 255}, ${targetColor.b * 255})`;
-                    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                    
-                    // Draw original
-                    tempCtx.drawImage(image, 0, 0);
-                    
-                    // Get new img data
-                    imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-                }
-            }
-            
-            const data = imageData.data;
-            
-            // Iterate through each pixel (4 elements per pixel: R, G, B, A)
-            for (let i = 0; i < data.length; i += 4) {
-                // Get current pixel RGB values (normalized to 0-1)
-                const r_in = data[i] / 255;
-                const g_in = data[i + 1] / 255;
-                const b_in = data[i + 2] / 255;
-                
-                // Target background color RGB components
-                const { r: r_bg, g: g_bg, b: b_bg } = targetColor;
-                
-                // 1. Calculate alpha channel value (based on maximum deviation from background color)
-                let alpha_r = 0, alpha_g = 0, alpha_b = 0;
-                
-                // Calculate alpha for red
-                if (r_bg < 1) alpha_r = Math.max(0, (r_in - r_bg) / (1 - r_bg));
-                if (r_bg > 0) alpha_r = Math.max(alpha_r, (r_bg - r_in) / r_bg);
-                
-                // Calculate alpha for green
-                if (g_bg < 1) alpha_g = Math.max(0, (g_in - g_bg) / (1 - g_bg));
-                if (g_bg > 0) alpha_g = Math.max(alpha_g, (g_bg - g_in) / g_bg);
-                
-                // Calculate alpha for blue
-                if (b_bg < 1) alpha_b = Math.max(0, (b_in - b_bg) / (1 - b_bg));
-                if (b_bg > 0) alpha_b = Math.max(alpha_b, (b_bg - b_in) / b_bg);
-                
-                // Take the maximum alpha value from the 3 color channels
-                const alpha = Math.max(alpha_r, alpha_g, alpha_b);
-                
-                // Clamp alpha value to 0-1 range to prevent precision errors
-                const final_alpha = Math.max(0, Math.min(1, alpha));
-                
-                // 2. Calculate new foreground color (reverse premultiplication)
-                let r_out, g_out, b_out;
-                if (final_alpha < 1e-6) {
-                    // If almost completely transparent, color values don't matter, set to 0
-                    r_out = g_out = b_out = 0;
-                } else {
-                    // Calculate actual foreground based on alpha value
-                    r_out = (r_in - r_bg * (1 - final_alpha)) / final_alpha;
-                    g_out = (g_in - g_bg * (1 - final_alpha)) / final_alpha;
-                    b_out = (b_in - b_bg * (1 - final_alpha)) / final_alpha;
-                }
-                
-                // 3. Write the calculated new RGBA values back to pixel data
-                data[i] = Math.max(0, Math.min(255, r_out * 255)); // Red component
-                data[i + 1] = Math.max(0, Math.min(255, g_out * 255)); // Green component
-                data[i + 2] = Math.max(0, Math.min(255, b_out * 255)); // Blue component
-                data[i + 3] = final_alpha * 255; // Alpha channel
-            }
-            
-            // Put processed img data back to canvas
-            ctx.putImageData(imageData, 0, 0);
-            
-            // Return processed img data
-            return {
-                imageData: imageData,
-                dataURL: canvas.toDataURL('image/png')
-            };
-        }
+                });
+            },
         
-        // Process image based on selection
-        function processImageWithMode() {
-            if (!currentImage) return;
-            
-            const startTime = performance.now();
-            
-            // Get selected
-            let selectedMode = 'white';
-            for (const radio of bgColorRadios) {
-                if (radio.checked) {
-                    selectedMode = radio.value;
-                    break;
-                }
-            }
-            
-            let result;
-            
-            if (selectedMode === 'white') {
-                // White removal
-                const targetColor = { r: 1, g: 1, b: 1 };
-                result = processImage(currentImage, targetColor);
-            } else if (selectedMode === 'black') {
-                // Black removal
-                const targetColor = { r: 0, g: 0, b: 0 };
-                result = processImage(currentImage, targetColor);
-            } else if (selectedMode === 'grayscale') {
-                // Grayscale: remove white first, then black
-                const whiteColor = { r: 1, g: 1, b: 1 };
-                const blackColor = { r: 0, g: 0, b: 0 };
-                
-                // Step 1: Remove white
-                const step1Result = processImage(currentImage, whiteColor);
-                
-                // Step 2: Remove black using step 1 result as input
-                const tempImage = new Image();
-                tempImage.src = step1Result.dataURL;
-                tempImage.onload = function() {
-                    result = processImage(tempImage, blackColor);
-                    
-                    // Update preview and download link
-                    updatePreviewAndDownload(result.dataURL);
-                    
-                    // Calculate and display processing time
-                    const endTime = performance.now();
-                    const timeTaken = (endTime - startTime).toFixed(2);
-                    processingTime.textContent = `Time: ${timeTaken} ms`;
-                };
-                return; // Return early, wait for step 2 to complete
-            }
-            
-            // Update preview and dl link
-            updatePreviewAndDownload(result.dataURL);
-            
-            // Calculate and display time
-            const endTime = performance.now();
-            const timeTaken = (endTime - startTime).toFixed(2);
-            processingTime.textContent = `Time: ${timeTaken} ms`;
-        }
-        
-        // Update preview and dl link
-        function updatePreviewAndDownload(dataURL) {
-            // Display preview
-            processedPreview.src = dataURL;
-            processedPreview.style.display = 'block';
-            
-            // Enable download
-            downloadBtn.disabled = false;
-            
-            // Save current result
-            currentImageDataURL = dataURL;
-            
-            // Setup download functionality
-            downloadBtn.onclick = function() {
-                const a = document.createElement('a');
-                a.href = dataURL;
-                
-                // Generate filename
+            // Filename
+            generateFilename(prefix) {
                 const now = new Date();
                 const year = now.getFullYear();
                 const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -264,47 +162,531 @@
                 const minutes = String(now.getMinutes()).padStart(2, '0');
                 const seconds = String(now.getSeconds()).padStart(2, '0');
                 
-                const filename = `IMG_${year}${month}${day}_${hours}${minutes}${seconds}.png`;
-                a.download = filename;
+                return `${prefix}_${year}${month}${day}_${hours}${minutes}${seconds}.png`;
+            },
+        
+            // Canvas utility functions
+            canvas: {
+                createCanvas(width, height) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    return canvas;
+                },
                 
+                imageToImageData(image) {
+                    const canvas = this.createCanvas(image.width, image.height);
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(image, 0, 0);
+                    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+                },
+                
+                imageDataToDataURL(imageData) {
+                    const canvas = this.createCanvas(imageData.width, imageData.height);
+                    const ctx = canvas.getContext('2d');
+                    ctx.putImageData(imageData, 0, 0);
+                    return canvas.toDataURL('image/png');
+                }
+            },
+        
+            // Generate unique task ID
+            generateTaskId() {
+                return Date.now() + Math.random().toString(36).substr(2, 9);
+            },
+        
+            // Clear cache
+            clearCache() {
+                state.cache.white = { dataURL: null, timestamp: 0 };
+                state.cache.black = { dataURL: null, timestamp: 0 };
+                state.cache.grayscale = { 
+                    colorDataURL: null, 
+                    grayscaleDataURL: null, 
+                    timestamp: 0 
+                };
+            },
+        
+            // Clear current mode cache
+            clearCurrentModeCache() {
+                const mode = utils.getSelectedMode();
+                state.cache[mode] = mode === 'grayscale' 
+                    ? { colorDataURL: null, grayscaleDataURL: null, timestamp: 0 }
+                    : { dataURL: null, timestamp: 0 };
+            }
+        };
+        
+        // Worker management
+        let imageWorker = null;
+        
+        const createImageWorker = () => {
+            const workerCode = `
+        /**
+         * Removes BG color from image data
+         * Uses color difference to calculate alpha
+         */
+        function processImage(imageData, targetColor) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            const resultData = new ImageData(width, height);
+            const result = resultData.data;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const r_in = data[i] / 255;
+                const g_in = data[i + 1] / 255;
+                const b_in = data[i + 2] / 255;
+                const a_in = data[i + 3] / 255;
+                
+                const { r: r_bg, g: g_bg, b: b_bg } = targetColor;
+                
+                // Composite input with BG if not fully OP
+                let r_comp = r_in, g_comp = g_in, b_comp = b_in;
+                if (a_in < 1) {
+                    r_comp = r_in * a_in + r_bg * (1 - a_in);
+                    g_comp = g_in * a_in + g_bg * (1 - a_in);
+                    b_comp = b_in * a_in + b_bg * (1 - a_in);
+                }
+                
+                // Calculate alpha for each channel based on diff from BG
+                let alpha_r = 0, alpha_g = 0, alpha_b = 0;
+                
+                if (r_bg < 1) alpha_r = Math.max(0, (r_comp - r_bg) / (1 - r_bg));
+                if (r_bg > 0) alpha_r = Math.max(alpha_r, (r_bg - r_comp) / r_bg);
+                
+                if (g_bg < 1) alpha_g = Math.max(0, (g_comp - g_bg) / (1 - g_bg));
+                if (g_bg > 0) alpha_g = Math.max(alpha_g, (g_bg - g_comp) / g_bg);
+                
+                if (b_bg < 1) alpha_b = Math.max(0, (b_comp - b_bg) / (1 - b_bg));
+                if (b_bg > 0) alpha_b = Math.max(alpha_b, (b_bg - b_comp) / b_bg);
+                
+                // Final alpha is max of all channels
+                const alpha = Math.max(alpha_r, alpha_g, alpha_b);
+                const final_alpha = Math.max(0, Math.min(1, alpha));
+                
+                // Calculate output RGB
+                let r_out, g_out, b_out;
+                if (final_alpha < 1e-6) {
+                    r_out = g_out = b_out = 0;
+                } else {
+                    r_out = (r_comp - r_bg * (1 - final_alpha)) / final_alpha;
+                    g_out = (g_comp - g_bg * (1 - final_alpha)) / final_alpha;
+                    b_out = (b_comp - b_bg * (1 - final_alpha)) / final_alpha;
+                }
+                
+                // Set output px values with clamping
+                result[i] = Math.max(0, Math.min(255, r_out * 255));
+                result[i + 1] = Math.max(0, Math.min(255, g_out * 255));
+                result[i + 2] = Math.max(0, Math.min(255, b_out * 255));
+                result[i + 3] = final_alpha * 255;
+            }
+            
+            return resultData;
+        }
+        
+        /**
+         * Decomposes image into CLR and grayscale components
+         * Used for grayscale mode to separate CLR information from brightness
+         */
+        function decomposeImage(imageData) {
+            const { width, height } = imageData;
+            const data = imageData.data;
+            
+            const colorData = new ImageData(width, height);
+            const grayscaleData = new ImageData(width, height);
+            
+            // Initialize grayscale data with black and full opacity
+            for (let i = 0; i < grayscaleData.data.length; i += 4) {
+                grayscaleData.data[i] = 0;
+                grayscaleData.data[i+1] = 0;
+                grayscaleData.data[i+2] = 0;
+                grayscaleData.data[i+3] = 255;
+            }
+            
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i];
+                let g = data[i+1];
+                let b = data[i+2];
+                let a = data[i+3];
+                
+                // Handle semi-transparent pixels by compositing with white background
+                if (a < 255) {
+                    const alpha = a / 255;
+                    r = Math.round(r * alpha + 255 * (1 - alpha));
+                    g = Math.round(g * alpha + 255 * (1 - alpha));
+                    b = Math.round(b * alpha + 255 * (1 - alpha));
+                    a = 255;
+                }
+                
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                
+                // Pure white or black px (special case)
+                if (max === 255 && min === 0) {
+                    colorData.data[i] = r;
+                    colorData.data[i+1] = g;
+                    colorData.data[i+2] = b;
+                    colorData.data[i+3] = a;
+                    grayscaleData.data[i+3] = 0;
+                    continue;
+                }
+                
+                // Grayscale px (special case)
+                if (max === min) {
+                    const L = 255 - r;
+                    colorData.data[i] = 0;
+                    colorData.data[i+1] = 0;
+                    colorData.data[i+2] = 0;
+                    colorData.data[i+3] = 0;
+                    grayscaleData.data[i+3] = L;
+                    continue;
+                }
+                
+                // General case: separate CLR from brightness
+                const rangeAvg = (max + min) / 2;
+                const colorAlpha = max - min;
+                
+                // Scale components to full range
+                const scaleFactor = 255 / (max - min);
+                const newR = Math.round((r - min) * scaleFactor);
+                const newG = Math.round((g - min) * scaleFactor);
+                const newB = Math.round((b - min) * scaleFactor);
+                
+                // Set CLR layer data
+                colorData.data[i] = newR;
+                colorData.data[i+1] = newG;
+                colorData.data[i+2] = newB;
+                colorData.data[i+3] = colorAlpha;
+                
+                // Calculate grayscale alpha based on brightness
+                const denominator = 255 - colorAlpha;
+                let grayscaleAlpha;
+                if (denominator === 0) {
+                    grayscaleAlpha = 0;
+                } else {
+                    grayscaleAlpha = (rangeAvg * 255 - colorAlpha * 127.5) / denominator;
+                    grayscaleAlpha = Math.round(255 - grayscaleAlpha);
+                    /** My calculations are correct; there should be no deduction of 1 here
+                      * However, contrary to expectations, many image processing programmes
+                      * result in a reduction of one grey level after merging transparent layers.
+                      */
+                    grayscaleAlpha = Math.max(0, Math.min(255, grayscaleAlpha)) - 1;
+                    // Therefore I am compelled to adapt to such problems here
+                }
+                
+                grayscaleData.data[i+3] = grayscaleAlpha;
+            }
+            
+            return { colorData, grayscaleData };
+        }
+        
+        // Worker msg handler
+        self.addEventListener('message', function(e) {
+            const { type, imageData, targetColor, taskId } = e.data;
+            let result;
+            
+            try {
+                if (type === 'removeBg') {
+                    result = processImage(imageData, targetColor);
+                    self.postMessage({ 
+                        success: true, 
+                        type: 'removeBg',
+                        result: result,
+                        taskId: taskId
+                    }, [result.data.buffer]);
+                } else if (type === 'decompose') {
+                    result = decomposeImage(imageData);
+                    self.postMessage({ 
+                        success: true, 
+                        type: 'decompose',
+                        colorData: result.colorData,
+                        grayscaleData: result.grayscaleData,
+                        taskId: taskId
+                    }, [result.colorData.data.buffer, result.grayscaleData.data.buffer]);
+                }
+            } catch (error) {
+                self.postMessage({ 
+                    success: false, 
+                    error: error.message,
+                    taskId: taskId
+                });
+            }
+        });
+        `;
+        
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            return new Worker(URL.createObjectURL(blob));
+        };
+        
+        const getImageWorker = () => {
+            if (!imageWorker) {
+                imageWorker = createImageWorker();
+            }
+            return imageWorker;
+        };
+        
+        // Event handlers
+        const handlers = {
+            // Handle upload
+            handleFileUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                utils.clearCache();
+                
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        state.currentImage = img;
+                        domElements.originalPreview.src = event.target.result;
+                        utils.toggleElement(domElements.originalPreview, true);
+                        utils.setButtonsState([domElements.reloadBtn], true);
+                        layout.update();
+                        processing.processImageWithMode();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            },
+        
+            // Handle mode change
+            handleModeChange() {
+                layout.update();
+                if (state.currentImage) {
+                    processing.processImageWithMode();
+                } else {
+                    const isGrayscale = utils.getSelectedMode() === 'grayscale';
+                    if (isGrayscale) {
+                        utils.toggleElement(domElements.colorPreview, false);
+                        utils.toggleElement(domElements.grayscalePreview, false);
+                    } else {
+                        utils.toggleElement(domElements.processedPreview, false);
+                    }
+                    utils.setButtonsState([domElements.downloadBtn, domElements.downloadBtn2], false);
+                    domElements.processingTime.textContent = '';
+                }
+            },
+        
+            // Handle reload
+            handleReload() {
+                if (!state.currentImage) return;
+                
+                utils.clearCurrentModeCache();
+                processing.processImageWithMode();
+            },
+        
+            // Handle DL button click
+            handleDownloadClick(e) {
+                if (e.target === domElements.downloadBtn) {
+                    const cached = state.cache[state.selectedMode];
+                    if (!cached) return;
+                    
+                    let dataURL, prefix;
+                    if (state.selectedMode === 'grayscale') {
+                        dataURL = cached.colorDataURL;
+                        prefix = 'CLR';
+                    } else {
+                        dataURL = cached.dataURL;
+                        prefix = 'IMG';
+                    }
+                    
+                    if (dataURL) {
+                        download.downloadImage(dataURL, prefix);
+                    }
+                } else if (e.target === domElements.downloadBtn2) {
+                    const cached = state.cache.grayscale;
+                    if (cached && cached.grayscaleDataURL) {
+                        download.downloadImage(cached.grayscaleDataURL, 'GY');
+                    }
+                }
+            },
+        
+            // Handle worker result
+            handleWorkerResult(type, result, colorData, grayscaleData, timeTaken, taskId) {
+                if (taskId !== state.currentTaskId) return;
+        
+                utils.setButtonsState([domElements.reloadBtn], true);
+        
+                if (type === 'removeBg') {
+                    handlers.handleRemoveBgResult(result, timeTaken);
+                } else if (type === 'decompose') {
+                    handlers.handleDecomposeResult(colorData, grayscaleData, timeTaken);
+                }
+            },
+        
+            // Handle remove BG result
+            handleRemoveBgResult(result, timeTaken) {
+                const dataURL = utils.canvas.imageDataToDataURL(result);
+                
+                state.cache[state.selectedMode] = {
+                    dataURL: dataURL,
+                    timestamp: Date.now()
+                };
+                
+                domElements.processedPreview.src = dataURL;
+                utils.toggleElement(domElements.processedPreview, true);
+                utils.setButtonsState([domElements.downloadBtn, domElements.downloadBtn2], true);
+                domElements.processingTime.textContent = `Time: ${timeTaken} ms`;
+            },
+        
+            // Handle decompose result
+            handleDecomposeResult(colorData, grayscaleData, timeTaken) {
+                const colorDataURL = utils.canvas.imageDataToDataURL(colorData);
+                const grayscaleDataURL = utils.canvas.imageDataToDataURL(grayscaleData);
+                
+                domElements.colorPreview.src = colorDataURL;
+                utils.toggleElement(domElements.colorPreview, true);
+                domElements.grayscalePreview.src = grayscaleDataURL;
+                utils.toggleElement(domElements.grayscalePreview, true);
+                
+                utils.setButtonsState([domElements.downloadBtn, domElements.downloadBtn2], true);
+                
+                state.cache.grayscale = {
+                    colorDataURL: colorDataURL,
+                    grayscaleDataURL: grayscaleDataURL,
+                    timestamp: Date.now()
+                };
+                
+                domElements.processingTime.textContent = `Time: ${timeTaken} ms`;
+            },
+        
+            // Load result from cache
+            loadFromCache(mode) {
+                const cached = state.cache[mode];
+                if (!cached) return false;
+        
+                if (mode === 'grayscale') {
+                    if (!cached.colorDataURL) return false;
+                    
+                    domElements.colorPreview.src = cached.colorDataURL;
+                    utils.toggleElement(domElements.colorPreview, true);
+                    domElements.grayscalePreview.src = cached.grayscaleDataURL;
+                    utils.toggleElement(domElements.grayscalePreview, true);
+                } else {
+                    if (!cached.dataURL) return false;
+                    
+                    domElements.processedPreview.src = cached.dataURL;
+                    utils.toggleElement(domElements.processedPreview, true);
+                }
+                
+                utils.setButtonsState([domElements.downloadBtn, domElements.downloadBtn2], true);
+                domElements.processingTime.textContent = `Time: 0 ms (Cached)`;
+                return true;
+            }
+        };
+        
+        // Layout MGT
+        const layout = {
+            update() {
+                state.selectedMode = utils.getSelectedMode();
+                const isGrayscale = state.selectedMode === 'grayscale';
+                
+                utils.toggleElement(domElements.defaultLayout, !isGrayscale);
+                utils.toggleElement(domElements.grayscaleLayout, isGrayscale);
+                
+                // Fix: Keep buttons horizontally aligned using inline-block instead of block
+                domElements.downloadBtn2.style.display = isGrayscale ? 'inline-block' : 'none';
+            }
+        };
+        
+        // Image processing
+        const processing = {
+            // Process with specified mode
+            processImageWithMode() {
+                if (!state.currentImage) return;
+                
+                state.selectedMode = utils.getSelectedMode();
+                
+                if (handlers.loadFromCache(state.selectedMode)) {
+                    return;
+                }
+                
+                const startTime = performance.now();
+                state.currentTaskId = utils.generateTaskId();
+                utils.setButtonsState([domElements.reloadBtn], false);
+                
+                const imageData = utils.canvas.imageToImageData(state.currentImage);
+                const worker = getImageWorker();
+                
+                let message;
+                if (state.selectedMode === 'white') {
+                    message = {
+                        type: 'removeBg',
+                        imageData: imageData,
+                        targetColor: { r: 1, g: 1, b: 1 },
+                        taskId: state.currentTaskId
+                    };
+                } else if (state.selectedMode === 'black') {
+                    message = {
+                        type: 'removeBg',
+                        imageData: imageData,
+                        targetColor: { r: 0, g: 0, b: 0 },
+                        taskId: state.currentTaskId
+                    };
+                } else if (state.selectedMode === 'grayscale') {
+                    message = {
+                        type: 'decompose',
+                        imageData: imageData,
+                        taskId: state.currentTaskId
+                    };
+                }
+                
+                worker.postMessage(message, [imageData.data.buffer]);
+                
+                worker.onmessage = function(e) {
+                    const { success, type, result, colorData, grayscaleData, error, taskId } = e.data;
+                    const timeTaken = (performance.now() - startTime).toFixed(2);
+                    
+                    if (!success) {
+                        console.error('Worker error:', error);
+                        domElements.processingTime.textContent = `Error: ${error}`;
+                        utils.setButtonsState([domElements.reloadBtn], true);
+                        return;
+                    }
+                    
+                    handlers.handleWorkerResult(type, result, colorData, grayscaleData, timeTaken, taskId);
+                };
+            }
+        };
+        
+        // Dl funct
+        const download = {
+            downloadImage(dataURL, prefix) {
+                const a = document.createElement('a');
+                a.href = dataURL;
+                a.download = utils.generateFilename(prefix);
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-            };
-        }
+            }
+        };
         
-        // Handle file upload
-        imageUpload.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        // Init
+        function setupEventListeners() {
+            domElements.imageUpload.addEventListener('change', handlers.handleFileUpload);
             
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    // Save current img
-                    currentImage = img;
-                    
-                    // Display original preview
-                    originalPreview.src = event.target.result;
-                    originalPreview.style.display = 'block';
-                    
-                    // Process img
-                    processImageWithMode();
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
-        
-        // Re-process when option changes
-        for (const radio of bgColorRadios) {
-            radio.addEventListener('change', function() {
-                if (currentImage) {
-                    processImageWithMode();
+            for (const radio of domElements.workModeRadios) {
+                radio.addEventListener('change', handlers.handleModeChange);
+            }
+            
+            domElements.reloadBtn.addEventListener('click', handlers.handleReload);
+            
+            // Use event delegation for dl buttons
+            document.addEventListener('click', (e) => {
+                if (e.target === domElements.downloadBtn || e.target === domElements.downloadBtn2) {
+                    handlers.handleDownloadClick(e);
                 }
             });
         }
+        
+        function init() {
+            setupEventListeners();
+            layout.update();
+            utils.setButtonsState([domElements.reloadBtn], false);
+        }
+        
+        // Initialize app
+        init();
     </script>
 </body>
 

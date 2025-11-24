@@ -6,7 +6,7 @@
  - Black
    Remove black only.
  - Grayscale
-   Preserve colors only.
+   Preserve colors and grayscale.
 
 ## Sample Images
 
@@ -22,10 +22,10 @@
 
 ![origin](images/Remove_Black.png)
 
-### Preserve Colors Only
+### Grayscale
 
 ![origin](images/Preserve_Colors_Only.png)
 
 ## What is it used for?
 
-It provides an intermediate step for image processing. This tool may make JPEG artifacts very noticeable. If you wish to remove them, please use the [Waifu2X](https://github.com/nihui/waifu2x-ncnn-vulkan) noise reduction function before processing your images on this website.
+It provides an intermediate step for image processing. This tool may make chroma sbsampling and JPEG artifacts very noticeable. If you wish to remove them, please use the [Waifu2X](https://github.com/nihui/waifu2x-ncnn-vulkan) noise reduction function before processing your images on this website.
