@@ -1,4 +1,4 @@
-# [Remove White Background](https://github.com/LukaLanczos/Remove-White-Background)
+# [Remove White Background](https://lukalanczos.github.io/Remove-White-Background/)
 
 ## Options
 
